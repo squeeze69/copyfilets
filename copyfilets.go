@@ -10,92 +10,49 @@ import (
 	"path/filepath"
 )
 
-// copymtime : copies the src file mtime on the dst file mtime/atime
-func copymtime(src, dst string) error {
-	fin, err := os.Stat(src)
-	if err != nil {
-		return err
+type destut interface {
+	Destfile(finfo os.FileInfo, name, fullname string) ([]string, error)
+	Dorecurse(d string) error
+}
+
+type research struct {
+	dfiles map[int64][]fn
+}
+
+func (r research) Destfile(finfo os.FileInfo, name string, fullname string) ([]string, error) {
+	ret := make([]string, 0, 1)
+	if b, ok := r.dfiles[finfo.Size()]; ok {
+		for _, v := range b {
+			if v.Name == name {
+				ret = append(ret, v.Fullname)
+			}
+		}
 	}
-	err = os.Chtimes(dst, fin.ModTime(), fin.ModTime())
-	if err != nil {
-		return err
+	if len(ret) > 0 {
+		return ret, nil
 	}
+	return ret, errors.New("file not found")
+}
+
+func NewResearch(d string) (*research, error) {
+	df := make(map[int64][]fn)
+	err := recursedir(d, df)
+	return &research{dfiles: df}, err
+}
+
+//Dorecurse : return nil if it's ok to recurse in SOURCE tree
+func (r research) Dorecurse(d string) error {
 	return nil
 }
 
-func destfile(finfo os.FileInfo, name string, fullname string) (string, error) {
-	if unordered {
-		if b, ok := dfiles[finfo.Size()]; ok {
-			for _, v := range b {
-				if v.Name == name {
-					return v.Fullname, nil
-				}
-			}
-		}
-	} else {
-		fdinfo, err1 := os.Lstat(fullname)
-		if err1 != nil {
-			return "", err1
-		}
-		if !fdinfo.IsDir() {
-			return fullname, nil
-		}
-	}
-
-	return "", errors.New("file not found")
-}
-
-func recurseandcopyts(s, d string) error {
-	dirs, err := os.ReadDir(s)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	var fi, fdinf os.FileInfo
-	var err1 error
-	var fullname string
-
-	for _, v := range dirs {
-		jd := filepath.Join(d, v.Name())
-		js := filepath.Join(s, v.Name())
-		if !unordered {
-			fdinf, err1 = os.Lstat(jd)
-			if err1 != nil {
-				continue
-			}
-		}
-		fi, _ = os.Lstat(js)
-		if fi.IsDir() {
-			if fdinf.IsDir() {
-				err := recurseandcopyts(js, jd)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			if unordered {
-				fullname, err1 = destfile(fi, fi.Name(), jd)
-				if err1 != nil {
-					continue
-				}
-				copymtime(js, fullname)
-			} else {
-				if fi.Size() == fdinf.Size() {
-					copymtime(js, jd)
-				}
-			}
-		}
-	}
-	return nil
-}
-
+//name and fullname for unordered search
 type fn struct {
 	Name     string
 	Fullname string
 }
 
 //recupera tutti nomi e li inserisce in una map
-func recursedir(mp map[int64][]fn, d string) error {
+func recursedir(d string, df map[int64][]fn) error {
 	dirs, err := os.ReadDir(d)
 	if err != nil {
 		return err
@@ -109,18 +66,92 @@ func recursedir(mp map[int64][]fn, d string) error {
 			return err1
 		}
 		if fd.IsDir() {
-			err = recursedir(mp, jd)
+			err = recursedir(jd, df)
 			if err != nil {
 				return err
 			}
 		} else {
-			if b, ok := mp[fd.Size()]; ok {
+			if b, ok := df[fd.Size()]; ok {
 				b = append(b, fn{Name: v.Name(), Fullname: jd})
-				mp[fd.Size()] = b
+				df[fd.Size()] = b
 			} else {
-				bucket := make([]fn, 1)
+				bucket := make([]fn, 0, 1)
 				bucket = append(bucket, fn{Name: v.Name(), Fullname: jd})
-				mp[fd.Size()] = bucket
+				df[fd.Size()] = bucket
+			}
+		}
+	}
+	return nil
+}
+
+// copymtime : copies the src file mtime on the dst file mtime/atime
+func copymtime(src, dst string) error {
+	fin, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	err = os.Chtimes(dst, fin.ModTime(), fin.ModTime())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type classic struct {
+}
+
+func (r classic) Dorecurse(d string) error {
+	fdinfo, err := os.Lstat(d)
+	if err != nil {
+		return err
+	}
+	if fdinfo.IsDir() {
+		return nil
+	}
+	return errors.New("not a dir")
+}
+
+func (r classic) Destfile(finfo os.FileInfo, name string, fullname string) ([]string, error) {
+	fdinfo, err1 := os.Lstat(fullname)
+	if err1 != nil {
+		return nil, err1
+	}
+	if !fdinfo.IsDir() {
+		if fdinfo.Size() == finfo.Size() {
+			return []string{fullname}, nil
+		}
+	}
+	return nil, errors.New("file not found")
+}
+
+func recurseandcopyts(s, d string, dstu destut) error {
+	dirs, err := os.ReadDir(s)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	var fi os.FileInfo
+	var err1 error
+	var fullname []string
+
+	for _, v := range dirs {
+		jd := filepath.Join(d, v.Name())
+		js := filepath.Join(s, v.Name())
+		fi, _ = os.Lstat(js)
+		if fi.IsDir() {
+			if dstu.Dorecurse(jd) == nil {
+				err := recurseandcopyts(js, jd, dstu)
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			fullname, err1 = dstu.Destfile(fi, fi.Name(), jd)
+			if err1 != nil {
+				continue
+			}
+			for i := range fullname {
+				copymtime(js, fullname[i])
 			}
 		}
 	}
@@ -129,7 +160,7 @@ func recursedir(mp map[int64][]fn, d string) error {
 
 var unordered = false
 
-var dfiles map[int64][]fn
+var du destut
 
 func main() {
 	flag.BoolVar(&unordered, "u", false, "find files in the destination dir")
@@ -140,14 +171,14 @@ func main() {
 		os.Exit(2)
 	}
 	if unordered {
-		dfiles = make(map[int64][]fn)
-		err := recursedir(dfiles, flag.Arg(1))
-		if err != nil {
-			fmt.Println(err)
+		du, _ = NewResearch(flag.Arg(1))
+		if du == nil {
 			os.Exit(1)
 		}
+	} else {
+		du = new(classic)
 	}
-	err := recurseandcopyts(flag.Arg(0), flag.Arg(1))
+	err := recurseandcopyts(flag.Arg(0), flag.Arg(1), du)
 	if err != nil {
 		os.Exit(1)
 	}
