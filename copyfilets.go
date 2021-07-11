@@ -22,9 +22,9 @@ type research struct {
 func (r research) Destfile(finfo os.FileInfo, name string, fullname string) ([]string, error) {
 	ret := make([]string, 0, 1)
 	if b, ok := r.dfiles[finfo.Size()]; ok {
-		for _, v := range b {
-			if v.Name == name {
-				ret = append(ret, v.Fullname)
+		for i := range b {
+			if b[i].Name == name {
+				ret = append(ret, b[i].Fullname)
 			}
 		}
 	}
@@ -86,7 +86,7 @@ func recursedir(d string, df map[int64][]fn) error {
 
 // copymtime : copies the src file mtime on the dst file mtime/atime
 func copymtime(src, dst string) error {
-	fin, err := os.Stat(src)
+	fin, err := os.Lstat(src)
 	if err != nil {
 		return err
 	}
