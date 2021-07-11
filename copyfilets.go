@@ -70,13 +70,12 @@ func recursedir(d string, df map[int64][]fn) error {
 				return err
 			}
 		} else {
-			if b, ok := df[fd.Size()]; ok {
-				b = append(b, fn{Name: v.Name(), Fullname: jd})
-				df[fd.Size()] = b
+			size := fd.Size()
+			if b, ok := df[size]; ok {
+				df[size] = append(b, fn{Name: v.Name(), Fullname: jd})
 			} else {
 				bucket := make([]fn, 0, 1)
-				bucket = append(bucket, fn{Name: v.Name(), Fullname: jd})
-				df[fd.Size()] = bucket
+				df[size] = append(bucket, fn{Name: v.Name(), Fullname: jd})
 			}
 		}
 	}
