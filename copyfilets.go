@@ -58,12 +58,11 @@ func recursedir(d string, df map[int64][]fn) error {
 		return err
 	}
 	var fd os.FileInfo
-	var err1 error
 	for _, v := range dirs {
 		jd := filepath.Join(d, v.Name())
-		fd, err1 = os.Lstat(jd)
-		if err1 != nil {
-			return err1
+		fd, err = os.Lstat(jd)
+		if err != nil {
+			return err
 		}
 		if fd.IsDir() {
 			err = recursedir(jd, df)
