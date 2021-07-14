@@ -11,7 +11,7 @@ import (
 )
 
 type destut interface {
-	Destfile(finfo os.FileInfo, name, fullname string) ([]string, error)
+	Destfile(finfo os.FileInfo, fullname string) ([]string, error)
 	Dorecurse(d string) error
 }
 
@@ -19,8 +19,9 @@ type research struct {
 	dfiles map[int64][]fn
 }
 
-func (r research) Destfile(finfo os.FileInfo, name string, fullname string) ([]string, error) {
+func (r research) Destfile(finfo os.FileInfo, fullname string) ([]string, error) {
 	ret := make([]string, 0, 1)
+	name := finfo.Name()
 	if b, ok := r.dfiles[finfo.Size()]; ok {
 		for i := range b {
 			if b[i].Name == name {
@@ -109,10 +110,10 @@ func (r classic) Dorecurse(d string) error {
 	return errors.New("not a dir")
 }
 
-func (r classic) Destfile(finfo os.FileInfo, name string, fullname string) ([]string, error) {
-	fdinfo, err1 := os.Lstat(fullname)
-	if err1 != nil {
-		return nil, err1
+func (r classic) Destfile(finfo os.FileInfo, fullname string) ([]string, error) {
+	fdinfo, err := os.Lstat(fullname)
+	if err != nil {
+		return nil, err
 	}
 	if !fdinfo.IsDir() {
 		if fdinfo.Size() == finfo.Size() {
@@ -144,7 +145,7 @@ func recurseandcopyts(s, d string, dstu destut) error {
 				}
 			}
 		} else {
-			fullname, err1 = dstu.Destfile(fi, fi.Name(), jd)
+			fullname, err1 = dstu.Destfile(fi, jd)
 			if err1 != nil {
 				continue
 			}
