@@ -130,7 +130,6 @@ func recurseandcopyts(s, d string, dstu destut) error {
 		os.Exit(1)
 	}
 	var fi os.FileInfo
-	var err1 error
 	var fullname []string
 
 	for _, v := range dirs {
@@ -139,14 +138,14 @@ func recurseandcopyts(s, d string, dstu destut) error {
 		fi, _ = os.Lstat(js)
 		if fi.IsDir() {
 			if dstu.Dorecurse(jd) == nil {
-				err := recurseandcopyts(js, jd, dstu)
+				err = recurseandcopyts(js, jd, dstu)
 				if err != nil {
 					return err
 				}
 			}
 		} else {
-			fullname, err1 = dstu.Destfile(fi, jd)
-			if err1 != nil {
+			fullname, err = dstu.Destfile(fi, jd)
+			if err != nil {
 				continue
 			}
 			for i := range fullname {
