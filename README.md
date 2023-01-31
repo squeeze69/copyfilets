@@ -1,6 +1,6 @@
 # COPYFILETS - Squeeze69
 
-## program to copy files' mtime on mtime/atime written in [GO](https://golang.org)
+## program to copy files' mtime on mtime/atime written in [GO](https://go.dev)
 
 ### License: GPLv3
 
